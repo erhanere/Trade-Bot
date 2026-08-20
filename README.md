@@ -6,10 +6,12 @@
    NVDA, TSLA) takip edip teknik indikatörlere (RSI, MACD, SMA50/200) ve
    destek/direnç seviyelerine göre Telegram üzerinden bildirim gönderir.
    Sadece bildirim yapar, emir göndermez.
-2. **Kripto futures botu** (`main_crypto.py`) — BTC/ETH'i (varsayılan:
-   BTCUSDT, ETHUSDT) aynı RSI + destek/direnç mantığıyla takip edip Telegram
-   bildirimi gönderir **ve** Bybit üzerinde otomatik long/short pozisyon
-   açıp kapatabilir (futures/perpetual, kaldıraçlı).
+2. **Kripto futures botu** (`main_crypto.py`) — birden fazla kripto sembolünü
+   (varsayılan: BTCUSDT, ETHUSDT, MINAUSDT, AVAXUSDT, ENAUSDT, ARBUSDT,
+   `.env`'deki `CRYPTO_SYMBOLS` ile değiştirilebilir) eşzamanlı olarak aynı
+   RSI + destek/direnç mantığıyla takip edip Telegram bildirimi gönderir
+   **ve** Bybit üzerinde her sembol için bağımsız olarak otomatik long/short
+   pozisyon açıp kapatabilir (futures/perpetual, kaldıraçlı).
 
 **Bu proje yatırım tavsiyesi değildir.** Kurallar örnek amaçlıdır, kendi risk
 toleransına göre değiştirmelisin. Kripto botu **gerçek para kaybına yol

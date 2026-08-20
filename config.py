@@ -19,6 +19,13 @@ def _env_float(name: str, default: float) -> float:
     return float(value)
 
 
+def _env_list(name: str, default: list) -> list:
+    value = os.getenv(name)
+    if value is None or value.strip() == "":
+        return default
+    return [item.strip() for item in value.split(",") if item.strip()]
+
+
 # Takip edilen semboller
 SYMBOLS = ["AAPL", "MSFT", "NVDA", "TSLA"]
 
@@ -53,7 +60,10 @@ AUTO_TRADE_ENABLED = False
 # Kripto (Bybit) ayarlari
 # ---------------------------------------------------------------------------
 
-CRYPTO_SYMBOLS = ["BTCUSDT", "ETHUSDT"]
+CRYPTO_SYMBOLS = _env_list(
+    "CRYPTO_SYMBOLS",
+    default=["BTCUSDT", "ETHUSDT", "MINAUSDT", "AVAXUSDT", "ENAUSDT", "ARBUSDT"],
+)
 CRYPTO_CATEGORY = "linear"  # USDT perpetual futures
 CRYPTO_KLINE_INTERVAL = "60"  # dakika (60 = 1 saatlik mumlar)
 CRYPTO_KLINE_LIMIT = 300
