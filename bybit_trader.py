@@ -241,7 +241,10 @@ def open_position(symbol: str, side: str, price: float, category: str = None) ->
     )
     if resp.get("retCode") != 0:
         raise ValueError(f"{symbol} emri gonderilemedi: {resp.get('retMsg')}")
-    logger.info("%s %s qty=%s emri gonderildi (yeni kademe eklendi)", symbol, side, qty_str)
+    logger.info(
+        "%s %s qty=%s @ ~%s SL=%s TP=%s emri gonderildi (yeni kademe eklendi)",
+        symbol, side, qty_str, f"{price:.{price_decimals}f}", stop_loss_str, take_profit_str,
+    )
     return resp
 
 
