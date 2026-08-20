@@ -54,6 +54,10 @@ def run_cycle():
                     "%s: fiyat=%.2f RSI=%.1f destek=%s direnc=%s -> sinyal yok",
                     symbol, latest["Close"], latest["RSI"], sr["support"], sr["resistance"],
                 )
+        except ValueError as exc:
+            # Veri yok/sembol testnette desteklenmiyor gibi beklenen durumlar -
+            # tam traceback yerine kisa bir uyari yeterli
+            logger.warning("%s atlaniyor: %s", symbol, exc)
         except Exception:
             logger.exception("%s icin dongu basarisiz oldu, sonraki sembole geciliyor", symbol)
 

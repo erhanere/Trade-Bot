@@ -87,6 +87,27 @@ yaparsan, botu once sadece Telegram bildirimi gonderen (emir gondermeyen)
 modda birkac gun izleyebilirsin — mantikli sinyaller uretip uretmedigini
 gormeden testnet'te bile otomatik emri acmani onermem.
 
+**Testnet kisitlamasi**: Bybit testnet, mainnet'teki her sembolu desteklemez
+— enstruman listede gorunse bile (`get_instruments_info` basarili doner)
+bazi semboller icin simule edilmis mum/islem verisi olmayabilir
+(`get_kline` bos doner). Bot bunu yakalayip o sembolu atlar, calismaya devam
+eder. Hangi sembollerin testnette veri dondurdugunu su komutla kontrol
+edebilirsin:
+
+```bash
+python -c "
+from pybit.unified_trading import HTTP
+import config
+client = HTTP(testnet=config.BYBIT_TESTNET)
+for s in config.CRYPTO_SYMBOLS:
+    resp = client.get_kline(category='linear', symbol=s, interval='60', limit=5)
+    print(s, '-> veri var' if resp['result']['list'] else '-> veri yok (testnette atlanacak)')
+"
+```
+Veri donmeyen sembolleri `.env`'deki `CRYPTO_SYMBOLS` listesinden cikar -
+mainnet'e gectiginde (gercek piyasa hareketliligi oldugu icin) muhtemelen
+sorunsuz calisirlar.
+
 ## Bybit kurulumu (kripto botu icin)
 
 1. **Once testnet hesabi ac**: https://testnet.bybit.com — gercek hesabindan
