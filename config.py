@@ -76,9 +76,10 @@ CRYPTO_POSITION_SIZE_PCT = 5.0
 CRYPTO_STOP_LOSS_PCT = 3.0
 CRYPTO_TAKE_PROFIT_PCT = 6.0
 
-# Short pozisyon acma - v1'de kapali, SELL sinyali sadece mevcut long
-# pozisyonu kapatir. True yapmadan once short'un likidasyon riskini anla.
-CRYPTO_ALLOW_SHORT = False
+# Short pozisyon acma - varsayilan kapali, SELL sinyali sadece mevcut long
+# pozisyonu kapatir. .env'de CRYPTO_ALLOW_SHORT=true yapmadan once short'un
+# likidasyon riskini anla (fiyat yukselirse short pozisyon zarar eder).
+CRYPTO_ALLOW_SHORT = _env_bool("CRYPTO_ALLOW_SHORT", default=False)
 
 # Otomatik emir - testnet'te varsayilan acik (sahte bakiye, risk yok).
 # Mainnet'te CONFIRM_LIVE_TRADING olmadan otomatik emir asla calismaz.

@@ -144,8 +144,8 @@ Tum testler yfinance/Bybit/Finnhub/Telegram gibi dis servisleri **mockluyor**
    Bybit futures botu (testnet varsayilan, guvenlik kapilariyla)
 5. ⏳ `trader.py` (Alpaca ile hisse senedi otomatik emri) — sadece acikca
    istenirse eklenmeli
-6. ⏳ Kripto short pozisyon (`CRYPTO_ALLOW_SHORT=True`) — su an kapali,
-   istersen ayri bir adim olarak gelistirilebilir
+6. ✅ Kripto short pozisyon (`.env`'de `CRYPTO_ALLOW_SHORT=true`) — varsayilan
+   kapali, riskini anladiktan sonra acabilirsin
 
 ## Onemli notlar
 
