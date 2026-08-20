@@ -48,6 +48,12 @@ def run_cycle():
             )
             if signal:
                 _handle_signal(signal)
+            else:
+                latest = df.iloc[-1]
+                logger.info(
+                    "%s: fiyat=%.2f RSI=%.1f destek=%s direnc=%s -> sinyal yok",
+                    symbol, latest["Close"], latest["RSI"], sr["support"], sr["resistance"],
+                )
         except Exception:
             logger.exception("%s icin dongu basarisiz oldu, sonraki sembole geciliyor", symbol)
 
