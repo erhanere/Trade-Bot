@@ -72,7 +72,11 @@ CRYPTO_KLINE_LIMIT = 300
 # ihtiyaca gore ayarla
 CRYPTO_RSI_OVERSOLD = 30
 CRYPTO_RSI_OVERBOUGHT = 70
-CRYPTO_SR_PROXIMITY_PCT = 1.5
+
+# Fiyat, destek/dirence bu yuzdenin icine girince sinyal sayilir. Genis
+# tutmak (orn. %3-4) tam seviyeye degmeden, yaklasirken erken pozisyona
+# baslamayi saglar - bkz. CRYPTO_SCALE_IN_TRANCHES.
+CRYPTO_SR_PROXIMITY_PCT = _env_float("CRYPTO_SR_PROXIMITY_PCT", default=3.0)
 
 # Bybit API kimlik bilgileri
 BYBIT_API_KEY = os.getenv("BYBIT_API_KEY")
@@ -88,8 +92,15 @@ CONFIRM_LIVE_TRADING = _env_bool("CONFIRM_LIVE_TRADING", default=False)
 # mesafe; stop-loss'un likidasyon mesafesinin icinde kaldigindan emin ol.
 CRYPTO_LEVERAGE = _env_float("CRYPTO_LEVERAGE", default=3)
 
-# Pozisyon buyuklugu: bakiyenin yuzdesi olarak (orn. 5.0 => bakiyenin %5'i)
+# Pozisyon buyuklugu: bakiyenin yuzdesi olarak (orn. 5.0 => bakiyenin %5'i).
+# Bu, TAM HEDEF pozisyon buyuklugudur - bot buna tek seferde degil,
+# CRYPTO_SCALE_IN_TRANCHES kadar parcaya bolerek ulasir.
 CRYPTO_POSITION_SIZE_PCT = _env_float("CRYPTO_POSITION_SIZE_PCT", default=5.0)
+
+# Hedef pozisyona kac parcada (kademede) ulasilsin. Destek/direnc bolgesine
+# yaklasirken her sinyalde hedefin 1/N'i kadar eklenir - fiyat seviyeye
+# yaklastikca pozisyon "ufak ufak" buyur, tek seferde tam boyutta acilmaz.
+CRYPTO_SCALE_IN_TRANCHES = max(1, int(_env_float("CRYPTO_SCALE_IN_TRANCHES", default=3)))
 
 # Risk yonetimi: her pozisyona otomatik eklenen stop-loss / take-profit.
 # DIKKAT: bunlar COIN FIYAT YUZDESI DEGIL, POZISYON YUZDESIDIR (kaldiraca

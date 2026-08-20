@@ -68,18 +68,26 @@ def round_qty(qty: float, qty_step: float, min_qty: float) -> float:
     return rounded
 
 
-def calculate_position_qty(symbol: str, price: float, balance: float) -> float:
-    """Bakiyenin CRYPTO_POSITION_SIZE_PCT'i ve CRYPTO_LEVERAGE kadar kaldirac
-    kullanilarak acilacak pozisyon miktarini hesaplar, borsa hassasiyetine yuvarlar.
+def _target_notional(balance: float) -> float:
+    """Bakiyenin CRYPTO_POSITION_SIZE_PCT'i ve CRYPTO_LEVERAGE kadar kaldiracla
+    ulasilmak istenen TAM hedef pozisyon buyuklugu (notional, USDT)."""
+    return balance * (config.CRYPTO_POSITION_SIZE_PCT / 100) * config.CRYPTO_LEVERAGE
+
+
+def calculate_position_qty(symbol: str, price: float, balance: float, notional: float = None) -> float:
+    """Verilen notional (USDT) buyuklugune karsilik gelen miktari, borsa
+    hassasiyetine (qtyStep/minOrderQty) yuvarlayarak hesaplar.
+
+    notional verilmezse tam hedef pozisyon buyuklugu kullanilir.
     """
     info = get_instrument_info(symbol)
     lot = info["lotSizeFilter"]
     qty_step = float(lot["qtyStep"])
     min_qty = float(lot["minOrderQty"])
 
-    notional = balance * (config.CRYPTO_POSITION_SIZE_PCT / 100) * config.CRYPTO_LEVERAGE
-    raw_qty = notional / price
-    return round_qty(raw_qty, qty_step, min_qty)
+    if notional is None:
+        notional = _target_notional(balance)
+    return round_qty(notional / price, qty_step, min_qty)
 
 
 def set_leverage(symbol: str, leverage: float = None, category: str = None):
@@ -106,21 +114,39 @@ def get_open_position(symbol: str, category: str = None):
 
 
 def open_position(symbol: str, side: str, price: float, category: str = None) -> dict:
-    """Yeni pozisyon acar. side: 'Buy' (long) veya 'Sell' (short).
+    """Yeni pozisyon acar ya da mevcut ayni yonlu pozisyona kademe ekler.
+    side: 'Buy' (long) veya 'Sell' (short).
 
-    - Zaten ayni sembolde acik pozisyon varsa atlar (pozisyon ustune eklemez).
+    Hedef pozisyon buyuklugune (CRYPTO_POSITION_SIZE_PCT) tek seferde degil,
+    CRYPTO_SCALE_IN_TRANCHES kadar esit parcada ulasilir - fiyat destek/direnc
+    bolgesine yaklastikca gelen her sinyalde hedefin ~1/N'i kadar eklenir.
+
+    - Zit yonde acik pozisyon varsa atlar (once elle kapatilmali, otomatik
+      yon degistirmez).
+    - Hedef buyukluge zaten ulasilmissa yeni ekleme yapmaz.
     - CRYPTO_AUTO_TRADE_ENABLED=False ise gercek emir gondermez, sadece ne
       yapilacagini loglar (dry-run) - Telegram-only test modunu destekler.
     - Mainnet'te CONFIRM_LIVE_TRADING onayi olmadan calismaz.
     """
     category = category or config.CRYPTO_CATEGORY
 
-    if get_open_position(symbol, category=category) is not None:
-        logger.info("%s icin zaten acik pozisyon var, yeni pozisyon acilmiyor", symbol)
-        return {"skipped": True, "reason": "position_exists"}
+    existing = get_open_position(symbol, category=category)
+    if existing is not None and existing.get("side") != side:
+        logger.info("%s icin ters yonde acik pozisyon var, atlaniyor", symbol)
+        return {"skipped": True, "reason": "opposite_position_exists"}
 
     balance = get_usdt_balance()
-    qty = calculate_position_qty(symbol, price, balance)
+    target_notional = _target_notional(balance)
+    current_notional = float(existing.get("positionValue", 0) or 0) if existing else 0.0
+
+    if current_notional >= target_notional * 0.95:
+        logger.info("%s icin hedef pozisyon buyuklugune ulasildi, eklenmiyor", symbol)
+        return {"skipped": True, "reason": "position_full"}
+
+    remaining_notional = target_notional - current_notional
+    tranche_notional = min(target_notional / config.CRYPTO_SCALE_IN_TRANCHES, remaining_notional)
+
+    qty = calculate_position_qty(symbol, price, balance, notional=tranche_notional)
     if qty <= 0:
         logger.warning("%s icin hesaplanan miktar minimumun altinda, emir gonderilmiyor", symbol)
         return {"skipped": True, "reason": "qty_too_small"}
@@ -140,9 +166,11 @@ def open_position(symbol: str, side: str, price: float, category: str = None) ->
         take_profit = price * (1 - take_profit_price_pct)
 
     if not config.CRYPTO_AUTO_TRADE_ENABLED:
+        fill_pct = min(100.0, (current_notional + tranche_notional) / target_notional * 100)
         logger.info(
-            "[DRY-RUN] %s %s qty=%s @ ~%.2f SL=%.2f TP=%.2f (CRYPTO_AUTO_TRADE_ENABLED=False, emir gonderilmedi)",
-            symbol, side, qty, price, stop_loss, take_profit,
+            "[DRY-RUN] %s %s qty=%s (kademe, hedefin ~%.0f%%'i) @ ~%.2f SL=%.2f TP=%.2f "
+            "(CRYPTO_AUTO_TRADE_ENABLED=False, emir gonderilmedi)",
+            symbol, side, qty, fill_pct, price, stop_loss, take_profit,
         )
         return {"dry_run": True, "symbol": symbol, "side": side, "qty": qty}
 
@@ -160,7 +188,11 @@ def open_position(symbol: str, side: str, price: float, category: str = None) ->
     )
     if resp.get("retCode") != 0:
         raise ValueError(f"{symbol} emri gonderilemedi: {resp.get('retMsg')}")
-    logger.info("%s %s qty=%s emri gonderildi", symbol, side, qty)
+    fill_pct = min(100.0, (current_notional + tranche_notional) / target_notional * 100)
+    logger.info(
+        "%s %s qty=%s emri gonderildi (kademe, hedefin ~%.0f%%'i dolu)",
+        symbol, side, qty, fill_pct,
+    )
     return resp
 
 

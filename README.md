@@ -152,8 +152,12 @@ fazla kapiya sahip:
 - **Short pozisyon kapali** (`CRYPTO_ALLOW_SHORT=False`): SELL sinyali
   sadece mevcut long pozisyonu kapatir, yeni short acmaz. Short'un
   likidasyon riskini anlamadan `True` yapma.
-- **Pozisyon ustune eklenmez**: bir sembolde zaten acik pozisyon varsa yeni
-  BUY sinyali atlanir, ustune pozisyon eklenmez.
+- **Kademeli pozisyon (scale-in)**: hedef pozisyon buyuklugune
+  (`CRYPTO_POSITION_SIZE_PCT`) tek seferde degil, `CRYPTO_SCALE_IN_TRANCHES`
+  kadar esit parcada ulasilir (varsayilan 3). Fiyat destek/direnc bolgesine
+  yaklasirken (`CRYPTO_SR_PROXIMITY_PCT`, varsayilan %3) gelen her sinyalde
+  hedefin ~1/N'i kadar eklenir; hedefe ulasilinca yeni ekleme yapilmaz. Zit
+  yonde acik pozisyon varsa atlanir (otomatik yon degistirmez).
 
 ## Testler
 
