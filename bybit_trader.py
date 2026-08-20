@@ -125,14 +125,19 @@ def open_position(symbol: str, side: str, price: float, category: str = None) ->
         logger.warning("%s icin hesaplanan miktar minimumun altinda, emir gonderilmiyor", symbol)
         return {"skipped": True, "reason": "qty_too_small"}
 
-    stop_loss_pct = config.CRYPTO_STOP_LOSS_PCT / 100
-    take_profit_pct = config.CRYPTO_TAKE_PROFIT_PCT / 100
+    # CRYPTO_STOP_LOSS_PCT / CRYPTO_TAKE_PROFIT_PCT pozisyon yuzdesi (marjine
+    # gore ROI) olarak tanimli, coin fiyat yuzdesi degil. Bybit'in SL/TP
+    # alanlari her zaman fiyat tetikleyicisi bekledigi icin kaldiraca bolerek
+    # gercek fiyat hareketine ceviriyoruz (ROI% = fiyat_hareketi% * kaldirac).
+    leverage = config.CRYPTO_LEVERAGE
+    stop_loss_price_pct = (config.CRYPTO_STOP_LOSS_PCT / 100) / leverage
+    take_profit_price_pct = (config.CRYPTO_TAKE_PROFIT_PCT / 100) / leverage
     if side == "Buy":
-        stop_loss = price * (1 - stop_loss_pct)
-        take_profit = price * (1 + take_profit_pct)
+        stop_loss = price * (1 - stop_loss_price_pct)
+        take_profit = price * (1 + take_profit_price_pct)
     else:
-        stop_loss = price * (1 + stop_loss_pct)
-        take_profit = price * (1 - take_profit_pct)
+        stop_loss = price * (1 + stop_loss_price_pct)
+        take_profit = price * (1 - take_profit_price_pct)
 
     if not config.CRYPTO_AUTO_TRADE_ENABLED:
         logger.info(

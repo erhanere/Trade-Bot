@@ -91,9 +91,15 @@ CRYPTO_LEVERAGE = _env_float("CRYPTO_LEVERAGE", default=3)
 # Pozisyon buyuklugu: bakiyenin yuzdesi olarak (orn. 5.0 => bakiyenin %5'i)
 CRYPTO_POSITION_SIZE_PCT = _env_float("CRYPTO_POSITION_SIZE_PCT", default=5.0)
 
-# Risk yonetimi: her pozisyona otomatik eklenen stop-loss / take-profit (%)
-CRYPTO_STOP_LOSS_PCT = _env_float("CRYPTO_STOP_LOSS_PCT", default=3.0)
-CRYPTO_TAKE_PROFIT_PCT = _env_float("CRYPTO_TAKE_PROFIT_PCT", default=6.0)
+# Risk yonetimi: her pozisyona otomatik eklenen stop-loss / take-profit.
+# DIKKAT: bunlar COIN FIYAT YUZDESI DEGIL, POZISYON YUZDESIDIR (kaldiraca
+# gore ROI - Bybit'in "Unrealized P&L(ROI)" sutunuyla ayni anlamda). Orn.
+# CRYPTO_LEVERAGE=20 ve CRYPTO_STOP_LOSS_PCT=25 ise pozisyon %25 zarara
+# ulastiginda kapanir - bu da fiyatin sadece %25/20=%1.25 hareket etmesi
+# demektir (bybit_trader.py bu donusumu otomatik yapar). Varsayilanlar
+# muhafazakar (1:2 risk/odul); kendi degerlerini .env'de ayarla.
+CRYPTO_STOP_LOSS_PCT = _env_float("CRYPTO_STOP_LOSS_PCT", default=10.0)
+CRYPTO_TAKE_PROFIT_PCT = _env_float("CRYPTO_TAKE_PROFIT_PCT", default=20.0)
 
 # Short pozisyon acma - varsayilan kapali, SELL sinyali sadece mevcut long
 # pozisyonu kapatir. .env'de CRYPTO_ALLOW_SHORT=true yapmadan once short'un

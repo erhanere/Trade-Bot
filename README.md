@@ -140,8 +140,13 @@ fazla kapiya sahip:
   gondermez, sadece "şunu yapacaktım" seklinde loglar (dry-run) ve Telegram
   bildirimi gonderir — stratejini once bu modda gozlemleyebilirsin.
 - **Otomatik stop-loss / take-profit**: her acilan pozisyona
-  `CRYPTO_STOP_LOSS_PCT` / `CRYPTO_TAKE_PROFIT_PCT` (varsayilan %3 / %6)
-  otomatik eklenir. Bu ikisi ve `CRYPTO_LEVERAGE` / `CRYPTO_POSITION_SIZE_PCT`
+  `CRYPTO_STOP_LOSS_PCT` / `CRYPTO_TAKE_PROFIT_PCT` (varsayilan %10 / %20)
+  otomatik eklenir. **Bunlar coin fiyat yuzdesi degil, pozisyon yuzdesidir**
+  (kaldiraca gore ROI, Bybit'in "Unrealized P&L(ROI)" sutunuyla ayni anlamda) -
+  `bybit_trader.py` fiyat tetikleyicisini `pozisyon_yuzdesi / CRYPTO_LEVERAGE`
+  formuluyle hesaplar. Orn. 20x kaldirac + `CRYPTO_STOP_LOSS_PCT=25` ->
+  pozisyon %25 zararda kapanir, yani fiyatin sadece %1.25 hareket etmesi
+  yeterli. Bu ikisi ve `CRYPTO_LEVERAGE` / `CRYPTO_POSITION_SIZE_PCT`
   `.env`'den degistirilebilir (bkz. `.env.example`) - kod icindeki
   varsayilanlar muhafazakar kalir, riskini sen `.env`'inde ayarlarsin.
 - **Short pozisyon kapali** (`CRYPTO_ALLOW_SHORT=False`): SELL sinyali

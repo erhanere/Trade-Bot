@@ -108,6 +108,8 @@ def test_open_position_skips_when_qty_too_small(monkeypatch):
 
 
 def test_open_position_places_market_order_with_sl_tp_on_testnet(monkeypatch):
+    # leverage=3, STOP_LOSS_PCT=3.0 (pozisyon %) -> fiyat hareketi 3/3=%1
+    # leverage=3, TAKE_PROFIT_PCT=6.0 (pozisyon %) -> fiyat hareketi 6/3=%2
     fake = FakeClient(balance=1000.0)
     monkeypatch.setattr(bybit_trader, "_client", lambda: fake)
 
@@ -117,8 +119,23 @@ def test_open_position_places_market_order_with_sl_tp_on_testnet(monkeypatch):
     call = fake.place_order_calls[0]
     assert call["side"] == "Buy"
     assert call["orderType"] == "Market"
-    assert float(call["stopLoss"]) == pytest.approx(97.0)
-    assert float(call["takeProfit"]) == pytest.approx(106.0)
+    assert float(call["stopLoss"]) == pytest.approx(99.0)
+    assert float(call["takeProfit"]) == pytest.approx(102.0)
+
+
+def test_open_position_sl_tp_scales_with_leverage(monkeypatch):
+    # leverage=20, STOP_LOSS_PCT=25 (pozisyon %) -> fiyat hareketi 25/20=%1.25
+    monkeypatch.setattr(config, "CRYPTO_LEVERAGE", 20)
+    monkeypatch.setattr(config, "CRYPTO_STOP_LOSS_PCT", 25.0)
+    monkeypatch.setattr(config, "CRYPTO_TAKE_PROFIT_PCT", 25.0)
+    fake = FakeClient(balance=1000.0)
+    monkeypatch.setattr(bybit_trader, "_client", lambda: fake)
+
+    bybit_trader.open_position("BTCUSDT", "Buy", price=100.0)
+
+    call = fake.place_order_calls[0]
+    assert float(call["stopLoss"]) == pytest.approx(98.75)
+    assert float(call["takeProfit"]) == pytest.approx(101.25)
 
 
 def test_open_position_refuses_on_mainnet_without_confirmation(monkeypatch):
