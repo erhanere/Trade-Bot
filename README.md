@@ -8,10 +8,11 @@
    Sadece bildirim yapar, emir göndermez.
 2. **Kripto futures botu** (`main_crypto.py`) — birden fazla kripto sembolünü
    (varsayılan: BTCUSDT, ETHUSDT, MINAUSDT, AVAXUSDT, ENAUSDT, ARBUSDT,
-   `.env`'deki `CRYPTO_SYMBOLS` ile değiştirilebilir) eşzamanlı olarak aynı
-   RSI + destek/direnç mantığıyla takip edip Telegram bildirimi gönderir
-   **ve** Bybit üzerinde her sembol için bağımsız olarak otomatik long/short
-   pozisyon açıp kapatabilir (futures/perpetual, kaldıraçlı).
+   `.env`'deki `CRYPTO_SYMBOLS` ile değiştirilebilir) eşzamanlı olarak
+   **15 dakikalık grafikte** RSI + pivot destek/direnç + Bollinger Bantları
+   mantığıyla takip edip Telegram bildirimi gönderir **ve** Bybit üzerinde
+   her sembol için bağımsız olarak otomatik long/short pozisyon açıp
+   kapatabilir (futures/perpetual, kaldıraçlı).
 
 **Bu proje yatırım tavsiyesi değildir.** Kurallar örnek amaçlıdır, kendi risk
 toleransına göre değiştirmelisin. Kripto botu **gerçek para kaybına yol
@@ -23,10 +24,10 @@ açabilir** — aşağıdaki güvenlik bölümünü okumadan çalıştırma.
 config.py                # Semboller, esik degerleri, .env'den API key'ler (hisse + kripto)
 data_fetcher.py           # yfinance ile hisse OHLCV fiyat verisi
 crypto_data_fetcher.py    # Bybit public kline API'siyle BTC/ETH OHLCV verisi (API key gerekmez)
-indicators.py              # RSI / MACD / SMA (manuel, pandas_ta kullanmadan) - hisse+kripto ortak
+indicators.py              # RSI / MACD / SMA / Bollinger Bantlari (manuel, pandas_ta kullanmadan) - ortak
 support_resistance.py     # Pivot bazli destek/direnc tespiti - hisse+kripto ortak
 news_monitor.py            # Finnhub haber cekme + basit anahtar kelime filtresi (sadece hisse)
-signal_engine.py           # Indikator + S/R kurallarina gore BUY/SELL/WATCH sinyali - ortak
+signal_engine.py           # RSI + pivot S/D + Bollinger Bant kurallarina gore BUY/SELL/WATCH - ortak
 notifier.py                 # Telegram bildirim gonderme - ortak
 bybit_trader.py            # Bybit futures: bakiye, kaldirac, pozisyon acma/kapama, guvenlik kapilari
 main.py                    # Hisse ana dongu (varsayilan: 5 dakikada bir, sadece bildirim)
@@ -36,6 +37,17 @@ tests/                      # pytest birim testleri (mocklanmis veri ile)
 
 `trader.py` (Alpaca ile hisse senedi otomatik emri) bilinçli olarak
 eklenmedi — sadece açıkça istenirse yazılacak.
+
+## Sinyal mantığı (kripto botu)
+
+`main_crypto.py`, `CRYPTO_KLINE_INTERVAL` (varsayılan **15 dakika**) ile
+çekilen mumlar üzerinde şu üç sinyal kaynağını birleştirir:
+
+1. **RSI (14)** — aşırı satım/alım (`CRYPTO_RSI_OVERSOLD`/`CRYPTO_RSI_OVERBOUGHT`, varsayılan 30/70)
+2. **Pivot destek/direnç** — fiyat, `CRYPTO_SR_PROXIMITY_PCT` (varsayılan %3) içine girerse "yakın" sayılır
+3. **Bollinger Bantları (20, 2 std)** — fiyat alt banda değer/altına inerse destek, üst banda değer/üstüne çıkarsa direnç sinyali sayılır
+
+**Destek/direnç bölgesi** = pivot seviyesine yakınlık **VEYA** Bollinger bandına değme — ikisinden biri yeterli, ikisi de olursa Telegram mesajında ikisi de belirtilir (örn. "RSI 19.0 (aşırı satım) + destek seviyesine yakın + Bollinger alt bandına değdi"). BUY/SELL için buna RSI eşiği de eklenir; sadece bölgeye yakınlık varsa (RSI eşiği aşılmadıysa) WATCH (sadece bildirim) üretilir.
 
 ## Kurulum
 

@@ -51,8 +51,9 @@ def run_cycle():
             else:
                 latest = df.iloc[-1]
                 logger.info(
-                    "%s: fiyat=%.2f RSI=%.1f destek=%s direnc=%s -> sinyal yok",
+                    "%s: fiyat=%.2f RSI=%.1f destek=%s direnc=%s BB=[%.2f, %.2f] -> sinyal yok",
                     symbol, latest["Close"], latest["RSI"], sr["support"], sr["resistance"],
+                    latest["BB_lower"], latest["BB_upper"],
                 )
         except ValueError as exc:
             # Veri yok/sembol testnette desteklenmiyor gibi beklenen durumlar -

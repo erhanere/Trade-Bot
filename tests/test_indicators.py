@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from indicators import add_indicators, macd, rsi, sma
+from indicators import add_indicators, bollinger_bands, macd, rsi, sma
 
 
 def test_rsi_is_100_for_strictly_increasing_series():
@@ -45,6 +45,38 @@ def test_add_indicators_adds_expected_columns():
     close = pd.Series(100 + np.cumsum(np.random.default_rng(2).normal(0, 1, 250)))
     df = pd.DataFrame({"Close": close})
     result = add_indicators(df)
-    for col in ["RSI", "MACD_12_26_9", "MACDs_12_26_9", "MACDh_12_26_9", "SMA50", "SMA200"]:
+    for col in [
+        "RSI", "MACD_12_26_9", "MACDs_12_26_9", "MACDh_12_26_9", "SMA50", "SMA200",
+        "BB_upper", "BB_middle", "BB_lower",
+    ]:
         assert col in result.columns
     assert not result["SMA200"].isna().all()
+
+
+def test_bollinger_bands_middle_matches_sma():
+    close = pd.Series(100 + np.cumsum(np.random.default_rng(3).normal(0, 1, 60)))
+    result = bollinger_bands(close, length=20, std_mult=2.0)
+    expected_middle = close.rolling(window=20, min_periods=20).mean()
+    pd.testing.assert_series_equal(result["BB_middle"], expected_middle, check_names=False)
+
+
+def test_bollinger_bands_upper_above_lower():
+    close = pd.Series(100 + np.cumsum(np.random.default_rng(4).normal(0, 1, 60)))
+    result = bollinger_bands(close, length=20, std_mult=2.0).dropna()
+    assert (result["BB_upper"] > result["BB_lower"]).all()
+
+
+def test_bollinger_bands_are_symmetric_around_middle():
+    close = pd.Series(100 + np.cumsum(np.random.default_rng(5).normal(0, 1, 60)))
+    result = bollinger_bands(close, length=20, std_mult=2.0).dropna()
+    upper_gap = result["BB_upper"] - result["BB_middle"]
+    lower_gap = result["BB_middle"] - result["BB_lower"]
+    pd.testing.assert_series_equal(upper_gap, lower_gap, check_names=False)
+
+
+def test_bollinger_bands_widen_with_higher_std_mult():
+    close = pd.Series(100 + np.cumsum(np.random.default_rng(6).normal(0, 1, 60)))
+    narrow = bollinger_bands(close, length=20, std_mult=1.0).dropna()
+    wide = bollinger_bands(close, length=20, std_mult=3.0).dropna()
+    assert (wide["BB_upper"] > narrow["BB_upper"]).all()
+    assert (wide["BB_lower"] < narrow["BB_lower"]).all()

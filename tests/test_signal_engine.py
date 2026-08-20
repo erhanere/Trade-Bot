@@ -3,8 +3,10 @@ import pandas as pd
 from signal_engine import evaluate
 
 
-def _df_with(price: float, rsi: float) -> pd.DataFrame:
-    return pd.DataFrame({"Close": [price], "RSI": [rsi]})
+def _df_with(price: float, rsi: float, bb_lower: float = None, bb_upper: float = None) -> pd.DataFrame:
+    return pd.DataFrame(
+        {"Close": [price], "RSI": [rsi], "BB_lower": [bb_lower], "BB_upper": [bb_upper]}
+    )
 
 
 def test_buy_signal_when_oversold_near_support():
@@ -57,3 +59,44 @@ def test_no_signal_with_empty_sr_levels():
     sr = {"support": [], "resistance": []}
     signal = evaluate("AAPL", df, sr, proximity_pct=1.0, rsi_oversold=30, rsi_overbought=70)
     assert signal is None
+
+
+def test_buy_signal_when_oversold_and_at_bollinger_lower_band():
+    # Pivot destek yok/uzak, ama fiyat Bollinger alt bandinin altinda
+    df = _df_with(price=95.0, rsi=25.0, bb_lower=96.0, bb_upper=110.0)
+    sr = {"support": [], "resistance": []}
+    signal = evaluate("BTCUSDT", df, sr, proximity_pct=1.0, rsi_oversold=30, rsi_overbought=70)
+    assert signal.action == "BUY"
+    assert "Bollinger alt bandina degdi" in signal.reason
+
+
+def test_sell_signal_when_overbought_and_at_bollinger_upper_band():
+    df = _df_with(price=115.0, rsi=75.0, bb_lower=90.0, bb_upper=110.0)
+    sr = {"support": [], "resistance": []}
+    signal = evaluate("BTCUSDT", df, sr, proximity_pct=1.0, rsi_oversold=30, rsi_overbought=70)
+    assert signal.action == "SELL"
+    assert "Bollinger ust bandina degdi" in signal.reason
+
+
+def test_watch_signal_at_bollinger_band_without_rsi_extreme():
+    df = _df_with(price=95.0, rsi=50.0, bb_lower=96.0, bb_upper=110.0)
+    sr = {"support": [], "resistance": []}
+    signal = evaluate("BTCUSDT", df, sr, proximity_pct=1.0, rsi_oversold=30, rsi_overbought=70)
+    assert signal.action == "WATCH"
+    assert "Bollinger alt bandina degdi" in signal.reason
+
+
+def test_no_signal_when_price_inside_bollinger_bands():
+    df = _df_with(price=100.0, rsi=25.0, bb_lower=90.0, bb_upper=110.0)
+    sr = {"support": [], "resistance": []}
+    signal = evaluate("BTCUSDT", df, sr, proximity_pct=1.0, rsi_oversold=30, rsi_overbought=70)
+    assert signal is None
+
+
+def test_reason_mentions_both_pivot_and_bollinger_when_both_trigger():
+    df = _df_with(price=95.0, rsi=25.0, bb_lower=96.0, bb_upper=110.0)
+    sr = {"support": [95.2], "resistance": []}
+    signal = evaluate("BTCUSDT", df, sr, proximity_pct=1.0, rsi_oversold=30, rsi_overbought=70)
+    assert signal.action == "BUY"
+    assert "destek seviyesine yakin" in signal.reason
+    assert "Bollinger alt bandina degdi" in signal.reason

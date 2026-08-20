@@ -65,7 +65,9 @@ CRYPTO_SYMBOLS = _env_list(
     default=["BTCUSDT", "ETHUSDT", "MINAUSDT", "AVAXUSDT", "ENAUSDT", "ARBUSDT"],
 )
 CRYPTO_CATEGORY = "linear"  # USDT perpetual futures
-CRYPTO_KLINE_INTERVAL = "60"  # dakika (60 = 1 saatlik mumlar)
+# Mum araligi (dakika; Bybit "D"/"W"/"M" gibi degerleri de kabul eder).
+# 15 = 15 dakikalik mumlar - RSI/Bollinger/S-D bu zaman diliminde hesaplanir.
+CRYPTO_KLINE_INTERVAL = os.getenv("CRYPTO_KLINE_INTERVAL", "15")
 CRYPTO_KLINE_LIMIT = 300
 
 # RSI/destek-direnc esikleri hisselerden ayri tutuldu; kripto daha volatil,

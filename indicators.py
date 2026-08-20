@@ -38,11 +38,25 @@ def sma(close: pd.Series, length: int) -> pd.Series:
     return close.rolling(window=length, min_periods=length).mean()
 
 
+def bollinger_bands(close: pd.Series, length: int = 20, std_mult: float = 2.0) -> pd.DataFrame:
+    """Bollinger Bantlari: orta bant (SMA) +/- std_mult * hareketli standart sapma."""
+    middle = close.rolling(window=length, min_periods=length).mean()
+    std = close.rolling(window=length, min_periods=length).std()
+    return pd.DataFrame(
+        {
+            "BB_upper": middle + std_mult * std,
+            "BB_middle": middle,
+            "BB_lower": middle - std_mult * std,
+        }
+    )
+
+
 def add_indicators(df: pd.DataFrame) -> pd.DataFrame:
-    """DataFrame'e RSI, MACD ve SMA50/SMA200 kolonlarini ekler."""
+    """DataFrame'e RSI, MACD, SMA50/SMA200 ve Bollinger Bantlari kolonlarini ekler."""
     df = df.copy()
     df["RSI"] = rsi(df["Close"], length=14)
     df = pd.concat([df, macd(df["Close"])], axis=1)
     df["SMA50"] = sma(df["Close"], length=50)
     df["SMA200"] = sma(df["Close"], length=200)
+    df = pd.concat([df, bollinger_bands(df["Close"], length=20, std_mult=2.0)], axis=1)
     return df
