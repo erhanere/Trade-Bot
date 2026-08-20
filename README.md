@@ -45,9 +45,11 @@ eklenmedi — sadece açıkça istenirse yazılacak.
 
 1. **RSI (14)** — aşırı satım/alım (`CRYPTO_RSI_OVERSOLD`/`CRYPTO_RSI_OVERBOUGHT`, varsayılan 30/70)
 2. **Pivot destek/direnç** — fiyat, `CRYPTO_SR_PROXIMITY_PCT` (varsayılan %3) içine girerse "yakın" sayılır
-3. **Bollinger Bantları (20, 2 std)** — fiyat alt banda değer/altına inerse destek, üst banda değer/üstüne çıkarsa direnç sinyali sayılır
+3. **Bollinger Bantları (20, 2 std)** — fiyat, alt/üst banda `CRYPTO_SR_PROXIMITY_PCT` kadar yaklaşırsa (tam değmesi şart değil) destek/direnç sinyali sayılır
 
-**Destek/direnç bölgesi** = pivot seviyesine yakınlık **VEYA** Bollinger bandına değme — ikisinden biri yeterli, ikisi de olursa Telegram mesajında ikisi de belirtilir (örn. "RSI 19.0 (aşırı satım) + destek seviyesine yakın + Bollinger alt bandına değdi"). BUY/SELL için buna RSI eşiği de eklenir; sadece bölgeye yakınlık varsa (RSI eşiği aşılmadıysa) WATCH (sadece bildirim) üretilir.
+**Destek/direnç bölgesi** = pivot seviyesine yakınlık **VEYA** Bollinger bandına yakınlık — ikisinden biri yeterli, ikisi de olursa Telegram mesajında ikisi de belirtilir (örn. "RSI 19.0 (aşırı satım) + destek seviyesine yakın + Bollinger alt bandına yakın").
+
+**RSI şartı** (`CRYPTO_REQUIRE_RSI_EXTREME`, varsayılan `true`): varsayılan olarak BUY/SELL için RSI'nin de eşiği geçmiş olması gerekir; sadece bölgeye yakınlık varsa (RSI nötrken) WATCH (sadece bildirim, işlem yok) üretilir. `.env`'de `CRYPTO_REQUIRE_RSI_EXTREME=false` yaparsan RSI'ye bakılmaksızın sadece bölgeye yakınlık BUY/SELL açmaya yeter — daha sık işlem, daha fazla risk.
 
 ## Kurulum
 

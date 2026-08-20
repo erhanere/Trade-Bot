@@ -80,6 +80,13 @@ CRYPTO_RSI_OVERBOUGHT = 70
 # baslamayi saglar - bkz. CRYPTO_SCALE_IN_TRANCHES.
 CRYPTO_SR_PROXIMITY_PCT = _env_float("CRYPTO_SR_PROXIMITY_PCT", default=3.0)
 
+# False (varsayilan) iken BUY/SELL icin RSI'nin de asiri satim/alim esigini
+# gecmis olmasi sart - sadece yakinlik varsa (RSI notrken) bildirim (WATCH)
+# uretilir, islem acilmaz. True yaparsan RSI'ye bakilmaksizin sadece
+# destek/direnc/Bollinger bandina yakinlik BUY/SELL acmaya yeter - daha
+# sik islem, daha fazla risk. .env'de bilincli olarak ac.
+CRYPTO_REQUIRE_RSI_EXTREME = _env_bool("CRYPTO_REQUIRE_RSI_EXTREME", default=True)
+
 # Bybit API kimlik bilgileri
 BYBIT_API_KEY = os.getenv("BYBIT_API_KEY")
 BYBIT_API_SECRET = os.getenv("BYBIT_API_SECRET")

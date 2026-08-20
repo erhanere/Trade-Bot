@@ -45,6 +45,7 @@ def run_cycle():
                 proximity_pct=config.CRYPTO_SR_PROXIMITY_PCT,
                 rsi_oversold=config.CRYPTO_RSI_OVERSOLD,
                 rsi_overbought=config.CRYPTO_RSI_OVERBOUGHT,
+                require_rsi_extreme=config.CRYPTO_REQUIRE_RSI_EXTREME,
             )
             if signal:
                 _handle_signal(signal)
