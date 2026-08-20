@@ -55,10 +55,12 @@ def get_instrument_info(symbol: str, category: str = None) -> dict:
     return items[0]
 
 
-def round_qty(qty: float, qty_step: float, min_qty: float) -> float:
+def round_qty(qty: float, qty_step: float, min_qty: float, max_qty: float = None) -> float:
     """Miktari borsanin izin verdigi adim buyuklugune yuvarlar (asagi).
 
     Minimum emir miktarinin altinda kalirsa 0 dondurur (emir gonderilmemeli).
+    max_qty verilmisse (Bybit'in maxOrderQty'si) o tavanin uzerine cikmaz -
+    ucuz coin'lerde (orn. MINA) buyuk notional'lar borsa tavanini asabiliyor.
     """
     if qty_step <= 0:
         return qty
@@ -66,6 +68,10 @@ def round_qty(qty: float, qty_step: float, min_qty: float) -> float:
     rounded = round(steps * qty_step, 10)
     if rounded < min_qty:
         return 0.0
+    if max_qty is not None and rounded > max_qty:
+        # max_qty'yi de adim buyuklugune yuvarla (asagi) - tavanin ustune tasmasin
+        capped_steps = math.floor(max_qty / qty_step)
+        return round(capped_steps * qty_step, 10)
     return rounded
 
 
@@ -103,23 +109,27 @@ def calculate_position_qty(
     notional: float = None,
     qty_step: float = None,
     min_qty: float = None,
+    max_qty: float = None,
 ) -> float:
     """Verilen notional (USDT) buyuklugune karsilik gelen miktari, borsa
-    hassasiyetine (qtyStep/minOrderQty) yuvarlayarak hesaplar.
+    hassasiyetine (qtyStep/minOrderQty/maxOrderQty) yuvarlayarak hesaplar.
 
     notional verilmezse tam hedef pozisyon buyuklugu kullanilir. qty_step/
-    min_qty verilmezse enstruman bilgisi ayrica cekilir (bkz. open_position -
-    orada zaten cekildigi icin tekrar API cagrisi yapmamak adina gecilir).
+    min_qty/max_qty verilmezse enstruman bilgisi ayrica cekilir (bkz.
+    open_position - orada zaten cekildigi icin tekrar API cagrisi
+    yapmamak adina gecilir).
     """
     if qty_step is None or min_qty is None:
         info = get_instrument_info(symbol)
         lot = info["lotSizeFilter"]
         qty_step = float(lot["qtyStep"])
         min_qty = float(lot["minOrderQty"])
+        if max_qty is None and "maxOrderQty" in lot:
+            max_qty = float(lot["maxOrderQty"])
 
     if notional is None:
         notional = _target_notional(balance)
-    return round_qty(notional / price, qty_step, min_qty)
+    return round_qty(notional / price, qty_step, min_qty, max_qty)
 
 
 def set_leverage(symbol: str, leverage: float = None, category: str = None):
@@ -186,6 +196,7 @@ def open_position(symbol: str, side: str, price: float, category: str = None) ->
     lot = info["lotSizeFilter"]
     qty_step = float(lot["qtyStep"])
     min_qty = float(lot["minOrderQty"])
+    max_qty = float(lot["maxOrderQty"]) if "maxOrderQty" in lot else None
     qty_decimals = _decimal_places(lot["qtyStep"])
 
     price_filter = info["priceFilter"]
@@ -193,11 +204,32 @@ def open_position(symbol: str, side: str, price: float, category: str = None) ->
     price_decimals = _decimal_places(price_filter["tickSize"])
 
     qty = calculate_position_qty(
-        symbol, price, balance, notional=tranche_notional, qty_step=qty_step, min_qty=min_qty
+        symbol, price, balance, notional=tranche_notional,
+        qty_step=qty_step, min_qty=min_qty, max_qty=max_qty,
     )
     if qty <= 0:
         logger.warning("%s icin hesaplanan miktar minimumun altinda, emir gonderilmiyor", symbol)
         return {"skipped": True, "reason": "qty_too_small"}
+    if max_qty is not None and qty >= max_qty:
+        logger.warning(
+            "%s icin hesaplanan miktar borsa tavanina (%s) yuvarlandi - "
+            "coin fiyati cok dusuk/notional cok yuksek olabilir",
+            symbol, max_qty,
+        )
+
+    # SL/TP'yi bu kademenin ham sinyal fiyatina degil, kademe eklendikten
+    # SONRAKI TAHMINI ORTALAMA MALIYETE (Bybit'in avgPrice/"Breakeven Price"
+    # dedigi deger) gore hesapla. Aksi halde her yeni kademe SL/TP'yi o anki
+    # (volatil) fiyata gore sifirdan hesaplayip Bybit'teki eski conditional
+    # emirleri iptal edip yenisiyle degistiriyor - bu da yeni seviyenin
+    # anlik olarak fiyatin yanlis tarafinda kalip pozisyonun acilir acilmaz
+    # kapanmasina yol acabiliyor (gercek testnet calismasinda gozlemlendi).
+    existing_size = float(existing.get("size", 0) or 0) if existing else 0.0
+    existing_avg_price = float(existing.get("avgPrice", 0) or 0) if existing else 0.0
+    if existing_size > 0 and existing_avg_price > 0:
+        cost_basis = (existing_avg_price * existing_size + price * qty) / (existing_size + qty)
+    else:
+        cost_basis = price
 
     # CRYPTO_STOP_LOSS_PCT / CRYPTO_TAKE_PROFIT_PCT pozisyon yuzdesi (marjine
     # gore ROI) olarak tanimli, coin fiyat yuzdesi degil. Bybit'in SL/TP
@@ -207,11 +239,11 @@ def open_position(symbol: str, side: str, price: float, category: str = None) ->
     stop_loss_price_pct = (config.CRYPTO_STOP_LOSS_PCT / 100) / leverage
     take_profit_price_pct = (config.CRYPTO_TAKE_PROFIT_PCT / 100) / leverage
     if side == "Buy":
-        stop_loss = price * (1 - stop_loss_price_pct)
-        take_profit = price * (1 + take_profit_price_pct)
+        stop_loss = cost_basis * (1 - stop_loss_price_pct)
+        take_profit = cost_basis * (1 + take_profit_price_pct)
     else:
-        stop_loss = price * (1 + stop_loss_price_pct)
-        take_profit = price * (1 - take_profit_price_pct)
+        stop_loss = cost_basis * (1 + stop_loss_price_pct)
+        take_profit = cost_basis * (1 - take_profit_price_pct)
 
     stop_loss = round_price(stop_loss, tick_size)
     take_profit = round_price(take_profit, tick_size)
@@ -230,15 +262,20 @@ def open_position(symbol: str, side: str, price: float, category: str = None) ->
     _assert_safe_to_trade()
     set_leverage(symbol, category=category)
 
-    resp = _client().place_order(
-        category=category,
-        symbol=symbol,
-        side=side,
-        orderType="Market",
-        qty=qty_str,
-        stopLoss=stop_loss_str,
-        takeProfit=take_profit_str,
-    )
+    try:
+        resp = _client().place_order(
+            category=category,
+            symbol=symbol,
+            side=side,
+            orderType="Market",
+            qty=qty_str,
+            stopLoss=stop_loss_str,
+            takeProfit=take_profit_str,
+        )
+    except InvalidRequestError as exc:
+        # Bybit'in kendi limitleri (max emir boyutu, risk limit tier'i vb.)
+        # icin tam traceback yerine kisa ve anlasilir bir mesaj yeterli.
+        raise ValueError(f"{symbol} emri gonderilemedi: {exc.message}") from exc
     if resp.get("retCode") != 0:
         raise ValueError(f"{symbol} emri gonderilemedi: {resp.get('retMsg')}")
     logger.info(

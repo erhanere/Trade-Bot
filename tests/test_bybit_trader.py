@@ -13,6 +13,7 @@ class FakeClient:
         position=None,
         leverage_ret_code=0,
         place_order_ret_code=0,
+        place_order_error=None,
     ):
         self.balance = balance
         self.instrument = instrument or {
@@ -22,6 +23,7 @@ class FakeClient:
         self.position = position
         self.leverage_ret_code = leverage_ret_code
         self.place_order_ret_code = place_order_ret_code
+        self.place_order_error = place_order_error
         self.place_order_calls = []
         self.set_leverage_calls = []
 
@@ -53,6 +55,14 @@ class FakeClient:
 
     def place_order(self, **kwargs):
         self.place_order_calls.append(kwargs)
+        if self.place_order_error is not None:
+            raise InvalidRequestError(
+                request=f"POST /v5/order/create: {kwargs.get('symbol')}",
+                message=self.place_order_error,
+                status_code=110090,
+                time="00:00:00",
+                resp_headers=None,
+            )
         return {"retCode": self.place_order_ret_code, "retMsg": "OK", "result": {"orderId": "123"}}
 
 
@@ -74,6 +84,11 @@ def test_round_qty_floors_to_step():
 
 def test_round_qty_returns_zero_below_minimum():
     assert bybit_trader.round_qty(0.0005, qty_step=0.001, min_qty=0.001) == 0.0
+
+
+def test_round_qty_caps_at_maximum():
+    # Ucuz coin'lerde (orn. MINA) buyuk notional'lar borsa max_qty'sini asabilir
+    assert bybit_trader.round_qty(227620.3, qty_step=1, min_qty=1, max_qty=150000) == 150000.0
 
 
 def test_calculate_position_qty(monkeypatch):
@@ -217,6 +232,69 @@ def test_open_position_low_price_coin_sl_tp_use_instrument_tick_size(monkeypatch
     # 4 ondalik hassasiyet korunmus olmali (2'ye yuvarlanmamis)
     assert call["stopLoss"] == "0.1065"
     assert call["takeProfit"] == "0.1039"
+
+
+def test_open_position_sl_tp_based_on_blended_cost_basis_not_raw_price(monkeypatch):
+    # Regresyon: onceki kademe 100'den acilmisken yeni sinyal 103'ten
+    # geldiginde SL/TP'yi 103'e degil, iki kademenin agirlikli ortalamasina
+    # gore hesaplamali - aksi halde ardisik kademelerde SL/TP surekli
+    # sifirdan hesaplanip pozisyonun aninda kapanmasina yol acabiliyor.
+    monkeypatch.setattr(config, "CRYPTO_LEVERAGE", 1)
+    monkeypatch.setattr(config, "CRYPTO_STOP_LOSS_PCT", 10.0)
+    monkeypatch.setattr(config, "CRYPTO_TAKE_PROFIT_PCT", 10.0)
+    fake = FakeClient(
+        balance=1000.0,
+        position={"side": "Buy", "size": "1.0", "avgPrice": "100.0", "positionValue": "100"},
+    )
+    monkeypatch.setattr(bybit_trader, "_client", lambda: fake)
+
+    # yeni kademe: qty=0.5 (notional 50/price 103.0 hesabina yakin), price=103.0
+    bybit_trader.open_position("BTCUSDT", "Buy", price=103.0)
+
+    call = fake.place_order_calls[0]
+    qty = float(call["qty"])
+    expected_cost_basis = (100.0 * 1.0 + 103.0 * qty) / (1.0 + qty)
+    assert float(call["stopLoss"]) == pytest.approx(expected_cost_basis * 0.9, abs=0.05)
+    assert float(call["takeProfit"]) == pytest.approx(expected_cost_basis * 1.1, abs=0.05)
+    # Yeni sinyal fiyatinin (103) ham %10'u olan 92.7 DEGIL, harmanlanmis maliyet kullanilmali
+    assert float(call["stopLoss"]) != pytest.approx(103.0 * 0.9, abs=0.01)
+
+
+def test_open_position_caps_qty_at_instrument_max_order_qty(monkeypatch):
+    # Regresyon: MINAUSDT gibi cok ucuz bir coinde hesaplanan miktar
+    # Bybit'in maxOrderQty tavanini asip emrin reddedilmesine yol aciyordu.
+    monkeypatch.setattr(config, "CRYPTO_POSITION_SIZE_PCT", 5.0)
+    monkeypatch.setattr(config, "CRYPTO_LEVERAGE", 20)
+    monkeypatch.setattr(config, "CRYPTO_SCALE_IN_TRANCHES", 1)
+    fake = FakeClient(
+        balance=1_000_000.0,  # notional cok buyuk cikacak sekilde
+        instrument={
+            "lotSizeFilter": {"qtyStep": "1", "minOrderQty": "1", "maxOrderQty": "150000"},
+            "priceFilter": {"tickSize": "0.0001"},
+        },
+    )
+    monkeypatch.setattr(bybit_trader, "_client", lambda: fake)
+
+    bybit_trader.open_position("MINAUSDT", "Buy", price=0.14)
+
+    call = fake.place_order_calls[0]
+    assert float(call["qty"]) == 150000.0
+
+
+def test_open_position_converts_place_order_exchange_error_to_valueerror(monkeypatch):
+    # Bybit'in risk-limit/kaldirac tier hatasi gibi durumlarda tam pybit
+    # traceback'i yerine kisa, yakalanabilir bir ValueError donmeli.
+    fake = FakeClient(
+        balance=1000.0,
+        place_order_error=(
+            "The combined value of positions and orders has reached the limit "
+            "of the current risk tier. Please adjust your leverage to 16.67 or below."
+        ),
+    )
+    monkeypatch.setattr(bybit_trader, "_client", lambda: fake)
+
+    with pytest.raises(ValueError, match="risk tier"):
+        bybit_trader.open_position("ENAUSDT", "Sell", price=0.11)
 
 
 def test_open_position_refuses_on_mainnet_without_confirmation(monkeypatch):

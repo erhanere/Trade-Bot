@@ -173,7 +173,11 @@ fazla kapiya sahip:
   her yeni sinyalde bir kademe daha eklenir - **toplam buyuklukte bir tavan
   yok**, firsat oldukca 2., 3., 4. kademe eklenmeye devam eder. Tek fren
   gercek bakiye/marj yetersizligidir (Bybit emri reddeder). Zit yonde acik
-  pozisyon varsa atlanir (otomatik yon degistirmez).
+  pozisyon varsa atlanir (otomatik yon degistirmez). SL/TP, en son sinyal
+  fiyatina degil pozisyonun harmanlanmis ortalama maliyetine gore
+  hesaplanir (aksi halde ardisik kademeler SL/TP'yi surekli sifirdan
+  hesaplayip pozisyonun aninda kapanmasina yol acabiliyordu). Miktar
+  hesaplamasi borsanin `minOrderQty`/`maxOrderQty` sinirlarina da uyar.
 
 ## Testler
 
