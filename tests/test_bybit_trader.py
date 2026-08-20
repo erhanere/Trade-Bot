@@ -1,4 +1,5 @@
 import pytest
+from pybit.exceptions import InvalidRequestError
 
 import bybit_trader
 import config
@@ -37,7 +38,17 @@ class FakeClient:
 
     def set_leverage(self, category, symbol, buyLeverage, sellLeverage):
         self.set_leverage_calls.append((symbol, buyLeverage, sellLeverage))
-        return {"retCode": self.leverage_ret_code, "retMsg": "leverage not modified"}
+        # Gercek pybit, retCode sifir olmayan HER durumda (sadece bilinmeyen
+        # hatalarda degil) InvalidRequestError firlatir, dict dondurmez.
+        if self.leverage_ret_code != 0:
+            raise InvalidRequestError(
+                request=f"POST /v5/position/set-leverage: {symbol}",
+                message="leverage not modified" if self.leverage_ret_code == 110043 else "error",
+                status_code=self.leverage_ret_code,
+                time="00:00:00",
+                resp_headers=None,
+            )
+        return {"retCode": 0, "retMsg": "OK"}
 
     def place_order(self, **kwargs):
         self.place_order_calls.append(kwargs)

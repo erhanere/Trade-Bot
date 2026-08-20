@@ -1,6 +1,7 @@
 import logging
 import math
 
+from pybit.exceptions import InvalidRequestError
 from pybit.unified_trading import HTTP
 
 import config
@@ -95,9 +96,17 @@ def set_leverage(symbol: str, leverage: float = None, category: str = None):
     category = category or config.CRYPTO_CATEGORY
     # Bybit tam sayi kaldiraclari "3.0" degil "3" seklinde bekliyor
     leverage_str = f"{leverage:g}"
-    resp = _client().set_leverage(
-        category=category, symbol=symbol, buyLeverage=leverage_str, sellLeverage=leverage_str
-    )
+    try:
+        resp = _client().set_leverage(
+            category=category, symbol=symbol, buyLeverage=leverage_str, sellLeverage=leverage_str
+        )
+    except InvalidRequestError as exc:
+        # pybit "leverage not modified" gibi bazi hata kodlarinda dict degil
+        # exception firlatir - istenen kaldirac zaten ayarliysa sorun degil.
+        if exc.status_code == _LEVERAGE_NOT_MODIFIED:
+            return
+        raise ValueError(f"{symbol} kaldirac ayarlanamadi: {exc.message}") from exc
+
     if resp.get("retCode") not in (0, _LEVERAGE_NOT_MODIFIED):
         raise ValueError(f"{symbol} kaldirac ayarlanamadi: {resp.get('retMsg')}")
 
