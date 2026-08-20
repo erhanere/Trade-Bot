@@ -118,7 +118,9 @@ fazla kapiya sahip:
   bildirimi gonderir — stratejini once bu modda gozlemleyebilirsin.
 - **Otomatik stop-loss / take-profit**: her acilan pozisyona
   `CRYPTO_STOP_LOSS_PCT` / `CRYPTO_TAKE_PROFIT_PCT` (varsayilan %3 / %6)
-  otomatik eklenir.
+  otomatik eklenir. Bu ikisi ve `CRYPTO_LEVERAGE` / `CRYPTO_POSITION_SIZE_PCT`
+  `.env`'den degistirilebilir (bkz. `.env.example`) - kod icindeki
+  varsayilanlar muhafazakar kalir, riskini sen `.env`'inde ayarlarsin.
 - **Short pozisyon kapali** (`CRYPTO_ALLOW_SHORT=False`): SELL sinyali
   sadece mevcut long pozisyonu kapatir, yeni short acmaz. Short'un
   likidasyon riskini anlamadan `True` yapma.

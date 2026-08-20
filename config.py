@@ -11,6 +11,14 @@ def _env_bool(name: str, default: bool) -> bool:
         return default
     return value.strip().lower() in ("1", "true", "yes", "on")
 
+
+def _env_float(name: str, default: float) -> float:
+    value = os.getenv(name)
+    if value is None or value.strip() == "":
+        return default
+    return float(value)
+
+
 # Takip edilen semboller
 SYMBOLS = ["AAPL", "MSFT", "NVDA", "TSLA"]
 
@@ -66,15 +74,16 @@ BYBIT_API_SECRET = os.getenv("BYBIT_API_SECRET")
 BYBIT_TESTNET = _env_bool("BYBIT_TESTNET", default=True)
 CONFIRM_LIVE_TRADING = _env_bool("CONFIRM_LIVE_TRADING", default=False)
 
-# Kaldirac (futures/perpetual icin)
-CRYPTO_LEVERAGE = 3
+# Kaldirac (futures/perpetual icin). Yuksek kaldirac = likidasyona daha az
+# mesafe; stop-loss'un likidasyon mesafesinin icinde kaldigindan emin ol.
+CRYPTO_LEVERAGE = _env_float("CRYPTO_LEVERAGE", default=3)
 
 # Pozisyon buyuklugu: bakiyenin yuzdesi olarak (orn. 5.0 => bakiyenin %5'i)
-CRYPTO_POSITION_SIZE_PCT = 5.0
+CRYPTO_POSITION_SIZE_PCT = _env_float("CRYPTO_POSITION_SIZE_PCT", default=5.0)
 
 # Risk yonetimi: her pozisyona otomatik eklenen stop-loss / take-profit (%)
-CRYPTO_STOP_LOSS_PCT = 3.0
-CRYPTO_TAKE_PROFIT_PCT = 6.0
+CRYPTO_STOP_LOSS_PCT = _env_float("CRYPTO_STOP_LOSS_PCT", default=3.0)
+CRYPTO_TAKE_PROFIT_PCT = _env_float("CRYPTO_TAKE_PROFIT_PCT", default=6.0)
 
 # Short pozisyon acma - varsayilan kapali, SELL sinyali sadece mevcut long
 # pozisyonu kapatir. .env'de CRYPTO_ALLOW_SHORT=true yapmadan once short'un

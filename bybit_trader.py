@@ -82,11 +82,13 @@ def calculate_position_qty(symbol: str, price: float, balance: float) -> float:
     return round_qty(raw_qty, qty_step, min_qty)
 
 
-def set_leverage(symbol: str, leverage: int = None, category: str = None):
+def set_leverage(symbol: str, leverage: float = None, category: str = None):
     leverage = leverage or config.CRYPTO_LEVERAGE
     category = category or config.CRYPTO_CATEGORY
+    # Bybit tam sayi kaldiraclari "3.0" degil "3" seklinde bekliyor
+    leverage_str = f"{leverage:g}"
     resp = _client().set_leverage(
-        category=category, symbol=symbol, buyLeverage=str(leverage), sellLeverage=str(leverage)
+        category=category, symbol=symbol, buyLeverage=leverage_str, sellLeverage=leverage_str
     )
     if resp.get("retCode") not in (0, _LEVERAGE_NOT_MODIFIED):
         raise ValueError(f"{symbol} kaldirac ayarlanamadi: {resp.get('retMsg')}")

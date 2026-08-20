@@ -191,3 +191,12 @@ def test_set_leverage_raises_on_real_error(monkeypatch):
 
     with pytest.raises(ValueError):
         bybit_trader.set_leverage("BTCUSDT")
+
+
+def test_set_leverage_formats_whole_numbers_without_decimal(monkeypatch):
+    fake = FakeClient()
+    monkeypatch.setattr(bybit_trader, "_client", lambda: fake)
+
+    bybit_trader.set_leverage("BTCUSDT", leverage=20.0)
+
+    assert fake.set_leverage_calls == [("BTCUSDT", "20", "20")]
