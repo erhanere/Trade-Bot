@@ -69,22 +69,53 @@ def round_qty(qty: float, qty_step: float, min_qty: float) -> float:
     return rounded
 
 
+def round_price(price: float, tick_size: float) -> float:
+    """Fiyati borsanin izin verdigi tick buyuklugune (en yakina) yuvarlar.
+
+    Ucuz altcoin'lerde (orn. $0.10) sabit 2 ondalik yuvarlama stop-loss ve
+    take-profit'i ayni degere cakistirip Bybit'in emri reddetmesine yol
+    acar - her sembolun kendi priceFilter.tickSize'ina gore yuvarlamak gerekir.
+    """
+    if tick_size <= 0:
+        return price
+    steps = round(price / tick_size)
+    return round(steps * tick_size, 10)
+
+
+def _decimal_places(step_str: str) -> int:
+    """'0.0001' -> 4, '0.01' -> 2, '1' -> 0. Bybit'e string gonderirken
+    bilimsel gosterim (1e-05) veya yanlis ondalik sayisi olusmasin diye."""
+    if "." not in step_str:
+        return 0
+    return len(step_str.split(".")[1].rstrip("0"))
+
+
 def _target_notional(balance: float) -> float:
     """Bakiyenin CRYPTO_POSITION_SIZE_PCT'i ve CRYPTO_LEVERAGE kadar kaldiracla
     ulasilmak istenen TAM hedef pozisyon buyuklugu (notional, USDT)."""
     return balance * (config.CRYPTO_POSITION_SIZE_PCT / 100) * config.CRYPTO_LEVERAGE
 
 
-def calculate_position_qty(symbol: str, price: float, balance: float, notional: float = None) -> float:
+def calculate_position_qty(
+    symbol: str,
+    price: float,
+    balance: float,
+    notional: float = None,
+    qty_step: float = None,
+    min_qty: float = None,
+) -> float:
     """Verilen notional (USDT) buyuklugune karsilik gelen miktari, borsa
     hassasiyetine (qtyStep/minOrderQty) yuvarlayarak hesaplar.
 
-    notional verilmezse tam hedef pozisyon buyuklugu kullanilir.
+    notional verilmezse tam hedef pozisyon buyuklugu kullanilir. qty_step/
+    min_qty verilmezse enstruman bilgisi ayrica cekilir (bkz. open_position -
+    orada zaten cekildigi icin tekrar API cagrisi yapmamak adina gecilir).
     """
-    info = get_instrument_info(symbol)
-    lot = info["lotSizeFilter"]
-    qty_step = float(lot["qtyStep"])
-    min_qty = float(lot["minOrderQty"])
+    if qty_step is None or min_qty is None:
+        info = get_instrument_info(symbol)
+        lot = info["lotSizeFilter"]
+        qty_step = float(lot["qtyStep"])
+        min_qty = float(lot["minOrderQty"])
 
     if notional is None:
         notional = _target_notional(balance)
@@ -148,7 +179,22 @@ def open_position(symbol: str, side: str, price: float, category: str = None) ->
     balance = get_usdt_balance()
     tranche_notional = _target_notional(balance) / config.CRYPTO_SCALE_IN_TRANCHES
 
-    qty = calculate_position_qty(symbol, price, balance, notional=tranche_notional)
+    # Enstruman hassasiyetini (miktar adimi + fiyat tick'i) tek seferde cek -
+    # ucuz altcoin'lerde (orn. $0.10) sabit ondalik yuvarlama SL/TP'yi ayni
+    # degere cakistirip Bybit'in emri reddetmesine yol acabiliyor.
+    info = get_instrument_info(symbol, category=category)
+    lot = info["lotSizeFilter"]
+    qty_step = float(lot["qtyStep"])
+    min_qty = float(lot["minOrderQty"])
+    qty_decimals = _decimal_places(lot["qtyStep"])
+
+    price_filter = info["priceFilter"]
+    tick_size = float(price_filter["tickSize"])
+    price_decimals = _decimal_places(price_filter["tickSize"])
+
+    qty = calculate_position_qty(
+        symbol, price, balance, notional=tranche_notional, qty_step=qty_step, min_qty=min_qty
+    )
     if qty <= 0:
         logger.warning("%s icin hesaplanan miktar minimumun altinda, emir gonderilmiyor", symbol)
         return {"skipped": True, "reason": "qty_too_small"}
@@ -167,11 +213,17 @@ def open_position(symbol: str, side: str, price: float, category: str = None) ->
         stop_loss = price * (1 + stop_loss_price_pct)
         take_profit = price * (1 - take_profit_price_pct)
 
+    stop_loss = round_price(stop_loss, tick_size)
+    take_profit = round_price(take_profit, tick_size)
+    qty_str = f"{qty:.{qty_decimals}f}"
+    stop_loss_str = f"{stop_loss:.{price_decimals}f}"
+    take_profit_str = f"{take_profit:.{price_decimals}f}"
+
     if not config.CRYPTO_AUTO_TRADE_ENABLED:
         logger.info(
-            "[DRY-RUN] %s %s qty=%s (yeni kademe) @ ~%.2f SL=%.2f TP=%.2f "
+            "[DRY-RUN] %s %s qty=%s (yeni kademe) @ ~%s SL=%s TP=%s "
             "(CRYPTO_AUTO_TRADE_ENABLED=False, emir gonderilmedi)",
-            symbol, side, qty, price, stop_loss, take_profit,
+            symbol, side, qty_str, f"{price:.{price_decimals}f}", stop_loss_str, take_profit_str,
         )
         return {"dry_run": True, "symbol": symbol, "side": side, "qty": qty}
 
@@ -183,13 +235,13 @@ def open_position(symbol: str, side: str, price: float, category: str = None) ->
         symbol=symbol,
         side=side,
         orderType="Market",
-        qty=str(qty),
-        stopLoss=str(round(stop_loss, 2)),
-        takeProfit=str(round(take_profit, 2)),
+        qty=qty_str,
+        stopLoss=stop_loss_str,
+        takeProfit=take_profit_str,
     )
     if resp.get("retCode") != 0:
         raise ValueError(f"{symbol} emri gonderilemedi: {resp.get('retMsg')}")
-    logger.info("%s %s qty=%s emri gonderildi (yeni kademe eklendi)", symbol, side, qty)
+    logger.info("%s %s qty=%s emri gonderildi (yeni kademe eklendi)", symbol, side, qty_str)
     return resp
 
 

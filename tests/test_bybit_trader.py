@@ -16,7 +16,8 @@ class FakeClient:
     ):
         self.balance = balance
         self.instrument = instrument or {
-            "lotSizeFilter": {"qtyStep": "0.001", "minOrderQty": "0.001"}
+            "lotSizeFilter": {"qtyStep": "0.001", "minOrderQty": "0.001"},
+            "priceFilter": {"tickSize": "0.01"},
         }
         self.position = position
         self.leverage_ret_code = leverage_ret_code
@@ -125,7 +126,7 @@ def test_open_position_adds_tranche_to_existing_same_side_position(monkeypatch):
 
     assert "skipped" not in result
     assert len(fake.place_order_calls) == 1
-    assert fake.place_order_calls[0]["qty"] == "0.5"
+    assert fake.place_order_calls[0]["qty"] == "0.500"
 
 
 def test_open_position_keeps_adding_tranches_with_no_total_cap(monkeypatch):
@@ -138,13 +139,16 @@ def test_open_position_keeps_adding_tranches_with_no_total_cap(monkeypatch):
 
     assert "skipped" not in result
     assert len(fake.place_order_calls) == 1
-    assert fake.place_order_calls[0]["qty"] == "0.5"
+    assert fake.place_order_calls[0]["qty"] == "0.500"
 
 
 def test_open_position_skips_when_qty_too_small(monkeypatch):
     fake = FakeClient(
         balance=0.01,
-        instrument={"lotSizeFilter": {"qtyStep": "0.001", "minOrderQty": "0.001"}},
+        instrument={
+            "lotSizeFilter": {"qtyStep": "0.001", "minOrderQty": "0.001"},
+            "priceFilter": {"tickSize": "0.01"},
+        },
     )
     monkeypatch.setattr(bybit_trader, "_client", lambda: fake)
 
@@ -183,6 +187,36 @@ def test_open_position_sl_tp_scales_with_leverage(monkeypatch):
     call = fake.place_order_calls[0]
     assert float(call["stopLoss"]) == pytest.approx(98.75)
     assert float(call["takeProfit"]) == pytest.approx(101.25)
+
+
+def test_open_position_low_price_coin_sl_tp_use_instrument_tick_size(monkeypatch):
+    # Regresyon: ENAUSDT gibi ~$0.10'luk bir coinde sabit 2 ondalik
+    # yuvarlama SL ve TP'yi ayni degere cakistirip Bybit'in emri
+    # reddetmesine yol aciyordu (gercek testnet calismasinda yakalandi).
+    # priceFilter.tickSize=0.0001 ile artik ikisi de farkli ve dogru yonde.
+    monkeypatch.setattr(config, "CRYPTO_LEVERAGE", 20)
+    monkeypatch.setattr(config, "CRYPTO_STOP_LOSS_PCT", 25.0)
+    monkeypatch.setattr(config, "CRYPTO_TAKE_PROFIT_PCT", 25.0)
+    fake = FakeClient(
+        balance=1000.0,
+        instrument={
+            "lotSizeFilter": {"qtyStep": "1", "minOrderQty": "1"},
+            "priceFilter": {"tickSize": "0.0001"},
+        },
+    )
+    monkeypatch.setattr(bybit_trader, "_client", lambda: fake)
+
+    bybit_trader.open_position("ENAUSDT", "Sell", price=0.1052)
+
+    call = fake.place_order_calls[0]
+    stop_loss = float(call["stopLoss"])
+    take_profit = float(call["takeProfit"])
+    assert stop_loss != take_profit
+    # Short: SL fiyatin ustunde, TP fiyatin altinda olmali
+    assert stop_loss > 0.1052 > take_profit
+    # 4 ondalik hassasiyet korunmus olmali (2'ye yuvarlanmamis)
+    assert call["stopLoss"] == "0.1065"
+    assert call["takeProfit"] == "0.1039"
 
 
 def test_open_position_refuses_on_mainnet_without_confirmation(monkeypatch):
