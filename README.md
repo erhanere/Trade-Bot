@@ -65,6 +65,26 @@ python main_crypto.py   # Kripto botu (bildirim + testnet'te varsayilan otomatik
 Telegram bilgileri girilmemisse botlar yine calisir, sinyalleri sadece
 log'a yazar (bildirim gonderilmez).
 
+## Kurulumu test etme
+
+Bu proje Claude Code'un genel internete kapali bir gelistirme ortaminda
+yazildi, yani yfinance/Bybit/Telegram gibi dis servislere hic canli baglanti
+kurulamadi — sadece mocklanmis testlerle dogrulandi (`pytest -q`, 52+ test
+geciyor). **Botu ilk kez calistirmadan once kendi makinende asagidaki
+kontrolu yap**, bu tek komut fiyat verisi cekmeyi, Bybit bakiyeni (API key
+girdiysen) ve Telegram bildirimini (token girdiysen) sirayla dener ve
+her birinin OK/HATA oldugunu raporlar:
+
+```bash
+python check_setup.py
+```
+
+Hepsi OK donene kadar `python main_crypto.py` ile tam donguyu baslatma.
+`.env`'de sadece `BYBIT_API_KEY`/`SECRET` girip `CRYPTO_AUTO_TRADE_ENABLED=false`
+yaparsan, botu once sadece Telegram bildirimi gonderen (emir gondermeyen)
+modda birkac gun izleyebilirsin — mantikli sinyaller uretip uretmedigini
+gormeden testnet'te bile otomatik emri acmani onermem.
+
 ## Bybit kurulumu (kripto botu icin)
 
 1. **Once testnet hesabi ac**: https://testnet.bybit.com — gercek hesabindan
@@ -112,16 +132,8 @@ pytest -q
 ```
 
 Tum testler yfinance/Bybit/Finnhub/Telegram gibi dis servisleri **mockluyor**
-— gercek API cagrisi yapmiyor, bu yuzden internet baglantisi olmadan da
-calisirlar. Bu proje bu haliyle Claude Code'un genel internete kapali bir
-gelistirme ortaminda yazildi; yani canli API baglantisi (gercek fiyat verisi,
-gercek Telegram mesaji, gercek Bybit testnet emri) hic dogrulanamadi. Kendi
-makinende calistirmadan once mutlaka tek seferlik bir kontrol yap:
-
-```bash
-python -c "from data_fetcher import get_price_history; print(get_price_history('AAPL').tail())"
-python -c "from crypto_data_fetcher import get_price_history; print(get_price_history('BTCUSDT').tail())"
-```
+— gercek API cagrisi yapmiyor. Canli baglanti dogrulamasi icin yukaridaki
+"Kurulumu test etme" bolumundeki `check_setup.py`'yi kullan.
 
 ## Yol haritasi
 
