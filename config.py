@@ -93,13 +93,15 @@ CONFIRM_LIVE_TRADING = _env_bool("CONFIRM_LIVE_TRADING", default=False)
 CRYPTO_LEVERAGE = _env_float("CRYPTO_LEVERAGE", default=3)
 
 # Pozisyon buyuklugu: bakiyenin yuzdesi olarak (orn. 5.0 => bakiyenin %5'i).
-# Bu, TAM HEDEF pozisyon buyuklugudur - bot buna tek seferde degil,
-# CRYPTO_SCALE_IN_TRANCHES kadar parcaya bolerek ulasir.
+# Tek bir "tam" pozisyonun buyuklugu budur - gercekte her kademe bunun
+# CRYPTO_SCALE_IN_TRANCHES'e bolunmus kadaridir (bkz. asagisi).
 CRYPTO_POSITION_SIZE_PCT = _env_float("CRYPTO_POSITION_SIZE_PCT", default=5.0)
 
-# Hedef pozisyona kac parcada (kademede) ulasilsin. Destek/direnc bolgesine
-# yaklasirken her sinyalde hedefin 1/N'i kadar eklenir - fiyat seviyeye
-# yaklastikca pozisyon "ufak ufak" buyur, tek seferde tam boyutta acilmaz.
+# Her kademe (tranche) CRYPTO_POSITION_SIZE_PCT / CRYPTO_SCALE_IN_TRANCHES
+# kadar kucuk acilir. TOPLAM BUYUKLUKTE BIR TAVAN YOK: destek/direnc
+# bolgesine yaklasirken/kaldigi surece her yeni sinyalde 2., 3., 4. kademe
+# eklenmeye devam eder - fırsat oldukca bot pozisyon biriktirir. Tek fren
+# gercek bakiye/marj yetersizligidir (Bybit emri reddeder).
 CRYPTO_SCALE_IN_TRANCHES = max(1, int(_env_float("CRYPTO_SCALE_IN_TRANCHES", default=3)))
 
 # Risk yonetimi: her pozisyona otomatik eklenen stop-loss / take-profit.

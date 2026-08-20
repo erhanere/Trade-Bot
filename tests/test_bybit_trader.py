@@ -104,20 +104,9 @@ def test_open_position_skips_when_opposite_side_position_exists(monkeypatch):
     assert fake.place_order_calls == []
 
 
-def test_open_position_skips_when_target_size_reached(monkeypatch):
-    # target notional = 1000 * 5% * 3x = 150; mevcut pozisyon zaten hedefte
-    fake = FakeClient(balance=1000.0, position={"side": "Buy", "size": "4.5", "positionValue": "150"})
-    monkeypatch.setattr(bybit_trader, "_client", lambda: fake)
-
-    result = bybit_trader.open_position("BTCUSDT", "Buy", price=100.0)
-
-    assert result == {"skipped": True, "reason": "position_full"}
-    assert fake.place_order_calls == []
-
-
 def test_open_position_adds_tranche_to_existing_same_side_position(monkeypatch):
-    # target notional = 150, 3 kademe -> her kademe 50. Ilk kademe (50)
-    # zaten acik, ikinci kademe eklenmeli (skip degil).
+    # target/tranches = (1000 * 5% * 3x) / 3 = 50 -> qty 0.5. Ayni yonde
+    # pozisyon zaten acik olsa da skip edilmez, yeni kademe eklenir.
     fake = FakeClient(balance=1000.0, position={"side": "Buy", "size": "0.5", "positionValue": "50"})
     monkeypatch.setattr(bybit_trader, "_client", lambda: fake)
 
@@ -128,14 +117,17 @@ def test_open_position_adds_tranche_to_existing_same_side_position(monkeypatch):
     assert fake.place_order_calls[0]["qty"] == "0.5"
 
 
-def test_open_position_last_tranche_capped_at_remaining_notional(monkeypatch):
-    # target notional = 150, kalan sadece 150-120=30 -> kademe 50 yerine 30 kullanilir
-    fake = FakeClient(balance=1000.0, position={"side": "Buy", "size": "1.2", "positionValue": "120"})
+def test_open_position_keeps_adding_tranches_with_no_total_cap(monkeypatch):
+    # Pozisyon zaten "tam hedefin" cok uzerinde olsa bile (eskiden %95
+    # tavaniyla skip edilirdi) - yeni firsatta yine ayni boyutta kademe eklenir.
+    fake = FakeClient(balance=1000.0, position={"side": "Buy", "size": "10.0", "positionValue": "1000"})
     monkeypatch.setattr(bybit_trader, "_client", lambda: fake)
 
-    bybit_trader.open_position("BTCUSDT", "Buy", price=100.0)
+    result = bybit_trader.open_position("BTCUSDT", "Buy", price=100.0)
 
-    assert fake.place_order_calls[0]["qty"] == "0.3"
+    assert "skipped" not in result
+    assert len(fake.place_order_calls) == 1
+    assert fake.place_order_calls[0]["qty"] == "0.5"
 
 
 def test_open_position_skips_when_qty_too_small(monkeypatch):
